@@ -1,8 +1,106 @@
-/// <reference path="jquery-1.8.2.intellisense.js" />
+/// <reference path="jquery-1.8.2.js" />
 
-// version 1.0
+// version 1.1
 
-(function ($, undefined) {
+
+
+(function ($, window, document, undefined) {
+
+    function Color(r, g, b, a) {
+        /// <summary>Represents and RGBA color.</summary>
+        /// <param name='r' type='Number'>The red component of this color.</param>
+        /// <param name='g' type='Number'>The green component of this color.</param>
+        /// <param name='b' type='Number'>The blue component of this color.</param>
+        /// <param name='a' type='Number'>The alpha transparency component of this color.</param>
+        /// <field name='a' type='Number'>The red component of this color.</field>
+        /// <field name='g' type='Number'>The green component of this color.</field>
+        /// <field name='b' type='Number'>The blue component of this color.</field>
+        /// <field name='a' type='Number'>The alpha transparency component of this color.</field>
+
+        this.r = r;
+        this.g = g;
+        this.b = b;
+        this.a = a;
+    }
+
+    Color.prototype.toString = function () {
+        return "rgba(" + this.r + "," + this.g + "," + this.b + "," + this.a + ")";
+    };
+
+    function toRadians(degrees) {
+        return degrees * Math.PI / 180;
+    }
+
+    function Vector2D(x, y) {
+        /// <summary>Represents a 2D vector.</summary>
+        /// <param name='x' type='Number'>The x component of this vector.</param>
+        /// <param name='y' type='Number'>The y component of this vector.</param>
+        /// <field name='x' type='Number'>The x component of this vector.</field>
+        /// <field name='y' type='Number'>The y component of this vector.</field>
+        this.x = x;
+        this.y = y;
+    }
+
+    Vector2D.prototype.plus = function (other) {
+        /// <signature>
+        ///   <param name='other' type='Vector2D' />
+        /// </signature>
+        return new Vector2D(this.x + other.x, this.y + other.y);
+    };
+
+    Vector2D.prototype.minus = function (other) {
+        /// <signature>
+        ///   <param name='other' type='Vector2D' />
+        /// </signature>
+        return new Vector2D(this.x - other.x, this.y - other.y);
+    };
+
+    function fillRectangle(ctx, pos, size, fill) {
+        /// <signature>
+        ///   <param name='ctx' type='CanvasRenderingContext2D' />
+        ///   <param name='pos' type='Vector2D' />
+        ///   <param name='size' type='Vector2D' />
+        ///   <param name='fill' type='Color' />
+        /// </signature>
+        
+        ctx.save();
+        ctx.fillStyle = fill.toString();
+        ctx.fillRect(pos.x, pos.y, size.x, size.y);
+        ctx.restore();
+    }
+
+    function fillTriangle(ctx, pos, size, degrees, fill) {
+        /// <signature>
+        ///   <param name='ctx' type='CanvasRenderingContext2D' />
+        ///   <param name='pos' type='Vector2D' />
+        ///   <param name='size' type='Vector2D' />
+        ///   <param name='degrees' type='Number' />
+        ///   <param name='fill' type='Color' />
+        /// </signature>
+
+        var halfWidth = new Vector2D(size.x / 2, 0);
+        var halfHeight = new Vector2D(0, size.y / 2);
+        var pMinus = pos.minus(halfHeight);
+        var a = pos.plus(halfHeight);
+        var b = pMinus.plus(halfWidth);
+        var c = pMinus.minus(halfWidth);
+
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(-toRadians(degrees));
+        ctx.translate(-pos.x, -pos.y);
+        ctx.fillStyle = fill.toString();
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.lineTo(a.x, a.y);
+        ctx.fill();
+        ctx.closePath();
+        ctx.restore();
+    }
+
+
     $.fn.imp = function (options) {
 
         this.css('border', '4px inset #9b9b9b');
@@ -37,8 +135,6 @@
 
         function setImage() {
             currentImage = images[index];
-            canvas.height = img.height;
-            canvas.width = img.width;
             offset = self.offset();
             height = canvas.height;
             width = canvas.width;
@@ -51,32 +147,19 @@
             self.css('cursor', 'auto');
         }
 
-        function drawSlideArrows() {
-            var width = clickableWidth;
-            var halfWidth = width / 2;
-
-            ctx.fillStyle = arrowFillStyle;
-
-            var leftX = halfWidth;
-            var leftY = canvas.height / 2;
-            ctx.beginPath();
-            ctx.moveTo(leftX - 10, leftY);
-            ctx.lineTo(leftX + 10, leftY + 20);
-            ctx.lineTo(leftX + 10, leftY - 20);
-            ctx.lineTo(leftX - 10, leftY);
-            ctx.fill();
-            ctx.closePath();
-
-            var rightX = canvas.width - halfWidth;
-            var rightY = leftY;
-            ctx.beginPath();
-            ctx.moveTo(rightX + 10, rightY);
-            ctx.lineTo(rightX - 10, rightY + 20);
-            ctx.lineTo(rightX - 10, rightY - 20);
-            ctx.lineTo(rightX + 10, rightY);
-            ctx.fill();
-            ctx.closePath();
-
+        var rectangleSize = new Vector2D(clickableWidth, height),
+            rectangleFill = new Color(128, 128, 128, 0.3),
+            arrowSize = new Vector2D(40, 20),
+            arrowFill = new Color(0, 0, 0, 1);
+        function drawLeft() {
+            fillRectangle(ctx, new Vector2D(0, 0), rectangleSize, rectangleFill);
+            fillTriangle(ctx, new Vector2D(clickableWidth / 2, canvas.height / 2), arrowSize, 270, arrowFill);
+            self.css('cursor', 'pointer');
+        }
+        function drawRight() {
+            fillRectangle(ctx, new Vector2D(width - clickableWidth, 0), rectangleSize, rectangleFill);
+            fillTriangle(ctx, new Vector2D(canvas.width - clickableWidth / 2, canvas.height / 2), arrowSize, 90, arrowFill);
+            self.css('cursor', 'pointer');
         }
 
         function checkBounds() {
@@ -92,23 +175,17 @@
             checkBounds();
             if (yBounded) {
                 if (leftXBounded) {
-                    ctx.fillStyle = fillStyle;
-                    ctx.fillRect(0, 0, clickableWidth, height);
-                    self.css('cursor', 'pointer');
+                    drawLeft();
                 }
                 if (rightXBounded) {
-                    ctx.fillStyle = fillStyle;
-                    ctx.fillRect(width - clickableWidth, 0, clickableWidth, height);
-                    self.css('cursor', 'pointer');
+                    drawRight();
                 }
             }
-            drawSlideArrows();
         }
 
-        self.bind('mousemove', function (e) {
+        $(document).bind('mousemove', function (e) {
             mouseX = e.pageX;
             mouseY = e.pageY;
-            draw();
         });
 
         self.click(function (e) {
@@ -120,21 +197,13 @@
                     index--;
                     if (index < 0)
                         index = 0;
-                    draw();
                 }
                 if (rightXBounded) {
                     index++;
                     if (index >= images.length)
                         index = images.length - 1;
-                    draw();
                 }
             }
-        });
-
-        self.bind("mouseleave", function (e) {
-            mouseX = e.pageX;
-            mouseY = e.pageY;
-            draw();
         });
 
         for (var i = 0, len = images.length; i < len; i++) {
@@ -142,8 +211,9 @@
             img.src = images[i];
             images[i] = img;
         }
-        draw();
+
+        setInterval(draw, 33.333);
         
         return this;
     };
-}(jQuery));
+}(jQuery, window, document));
