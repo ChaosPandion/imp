@@ -1,9 +1,6 @@
 /// <reference path="jquery-1.8.2.js" />
 
-// version 0.3.2
-
-
-
+// version 0.5.1
 
 
 (function ($, window, document, undefined) {
@@ -160,17 +157,121 @@
         };
     }
 
+    function toImageArray(srcArray) {
+        var images = [];
+        for (var i = 0, len = srcArray.length; i < len; i++) {
+            var img = new Image();
+            img.src = srcArray[i];
+            images.push(img);
+        }
+        return images;
+    }
+
+
+    function LinkedListNode(data, list, prev, next) {
+        this.data = data;
+        this.list = list;
+        this.prev = prev;
+        this.next = next;
+    }
+
+    function LinkedList() {
+        this.first = null;
+        this.last = null;
+    }
+
+    LinkedList.prototype.append = function (data) {
+        var node = new LinkedListNode(data, this);
+        if (!this.first) {
+            this.first = this.last = node;
+            node.next = node.prev = node;
+        } else {
+            var last = this.last;
+            this.last = this.first.prev = node;
+            node.next = this.first;
+            node.prev = last;
+            last.next = node;
+        }
+        return node;
+    };
+
+    function toImageList(srcArray, width, height) {
+        var list = new LinkedList();
+        for (var i = 0, len = srcArray.length; i < len; i++) {
+            var img = new Image();
+            img.src = srcArray[i];
+            img.width = width;
+            img.height = height;
+            list.append(img);
+        }
+        console.log(list);
+        return list;
+    }
+
+    function ImageScroller(ctx, images) {
+        var currentNode = images.first;
+        var count = images.length;
+        var endIndex = count - 1;
+        var width = ctx.canvas.width, height = ctx.canvas.height;
+        var index = 0;
+        var remainingOffset = 0;
+        var leftImage = images[0];
+        var rightImage = null;
+        var offsetPercentage = 0;
+
+        this.scroll = function (offset) {
+            if (remainingOffset !== 0)
+                return;
+            remainingOffset = offset;
+            offsetPercentage = 0.00;
+        };
+
+        this.draw = function () {
+            if (remainingOffset === 0) {
+                ctx.drawImage(currentNode.data, 0, 0, width, height);
+                return;
+            }
+            var dir, sibling, first, second;
+            if (remainingOffset < 0) {
+                dir = 1;
+                sibling = currentNode.prev;
+                first = currentNode
+                second = sibling;
+            } else {
+                dir = -1;
+                sibling = currentNode.next;
+                first = currentNode;
+                second = sibling;
+            }
+            offsetPercentage += 0.01;
+
+            var firstX = dir * width * offsetPercentage;
+            ctx.drawImage(first.data, firstX, 0, width, height);
+
+            var secondX = firstX - width * dir;
+            ctx.drawImage(second.data, secondX, 0, width, height);
+
+            if (offsetPercentage >= 1) {
+                remainingOffset = remainingOffset + dir;
+                offsetPercentage = 0.00;
+                currentNode = sibling;
+            }
+        };
+    }
+
+    ImageScroller.prototype.scroll = function (offset) {
+        if (this.isScrolling)
+            return;
+        this.remainingOffset = Math.abs(offset);
+
+    };
+
     $.fn.imp = function (options) {
 
         this.css('border', '4px inset #9b9b9b');
         this.css('background-color', '#494949');
 
         var self = this;
-
-        var images = options.images;
-
-        var index = 0;
-
         /// <var type='HTMLCanvasElement' />
         var canvas = this.get(0);
         var ctx = canvas.getContext('2d');
@@ -179,29 +280,14 @@
             rightXBounded = false,
             yBounded = false,
             mouseX = 0,
-            mouseY = 0;
-
-        var currentImage;
-        var offset = self.offset(),
+            mouseY = 0,
+            offset = self.offset(),
             height = canvas.height,
-            width = canvas.width;
-        var clickableWidth = width / 10;
-
-        function setImage() {
-            currentImage = images[index];
-            offset = self.offset();
-            height = canvas.height;
-            width = canvas.width;
-            clickableWidth = width / 10;
-        }
-
-
-        function clear() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            self.css('cursor', 'auto');
-        }
-
-        var invisibleAlpha = 0, goalAlpha = 0.3;
+            width = canvas.width,
+            clickableWidth = width / 10,
+            images = toImageList(options.images, width, height),
+            invisibleAlpha = 0,
+            goalAlpha = 0.3;
 
         function createClickables(ctx, w, h, rgb, initialAlpha, frameCount) {
             var left = new AlphaFade(alphaRectDraw(ctx, 0, 0, w, h, rgb), initialAlpha, frameCount),
@@ -216,10 +302,10 @@
             };
         }
 
-        var clickables = createClickables(ctx, clickableWidth, height, "#999999", 0, 25);
+        var clickables = createClickables(ctx, clickableWidth, height, "#999999", 0, 25),
+            imageScroller = new ImageScroller(ctx, images);
 
         function checkBounds() {
-
             leftXBounded = mouseX > offset.left && mouseX < offset.left + clickableWidth;
             if (leftXBounded) {
                 if (!clickables.left.visible && !clickables.left.fading) {
@@ -231,8 +317,6 @@
                     clickables.left.targetAlpha = invisibleAlpha;
                 }
             }
-
-
             rightXBounded = mouseX > offset.left + width - clickableWidth && mouseX < offset.left + width;
             if (rightXBounded) {
                 if (!clickables.right.visible && !clickables.right.fading) {
@@ -244,14 +328,17 @@
                     clickables.right.targetAlpha = invisibleAlpha;
                 }
             }
-
             yBounded = mouseY >= offset.top && mouseY <= offset.top + height;
         }
 
         function draw() {
-            setImage();
-            clear();
-            ctx.drawImage(images[index], 0, 0, canvas.width, canvas.height);
+            offset = self.offset();
+            height = canvas.height;
+            width = canvas.width;
+            clickableWidth = width / 10;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            self.css('cursor', 'auto');
+            imageScroller.draw();
             checkBounds();
             clickables.draw();
             if (yBounded) {
@@ -272,23 +359,13 @@
             checkBounds();
             if (yBounded) {
                 if (leftXBounded) {
-                    index--;
-                    if (index < 0)
-                        index = 0;
+                    imageScroller.scroll(-1);
                 }
                 if (rightXBounded) {
-                    index++;
-                    if (index >= images.length)
-                        index = images.length - 1;
+                    imageScroller.scroll(1);
                 }
             }
         });
-
-        for (var i = 0, len = images.length; i < len; i++) {
-            var img = document.createElement("img");
-            img.src = images[i];
-            images[i] = img;
-        }
 
         setInterval(draw, Imp.msPerFrame);
         
