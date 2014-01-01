@@ -1,10 +1,19 @@
 /// <reference path="jquery-1.8.2.js" />
 
-// version 1.1
+// version 0.3.2
+
+
 
 
 
 (function ($, window, document, undefined) {
+
+    function Imp(){
+
+    }
+
+    Imp.frameRate = 30;
+    Imp.msPerFrame = Imp.frameRate / 1000;
 
     function Color(r, g, b, a) {
         /// <summary>Represents and RGBA color.</summary>
@@ -23,8 +32,12 @@
         this.a = a;
     }
 
-    Color.prototype.toString = function () {
+    Color.toRgbaString = function (r, b, g, a) {
         return "rgba(" + this.r + "," + this.g + "," + this.b + "," + this.a + ")";
+    }
+
+    Color.prototype.toString = function () {
+        return Color.toRgbaString(this.r, this.b, this.g, this.a);
     };
 
     function toRadians(degrees) {
@@ -41,6 +54,8 @@
         this.y = y;
     }
 
+    Vector2D.zero = new Vector2D(0, 0);
+
     Vector2D.prototype.plus = function (other) {
         /// <signature>
         ///   <param name='other' type='Vector2D' />
@@ -54,6 +69,40 @@
         /// </signature>
         return new Vector2D(this.x - other.x, this.y - other.y);
     };
+
+
+    function AlphaFade(draw, initialAlpha, frameCount) {
+
+        var framesRemaining = 0;
+        var currentAlpha = initialAlpha;
+        var targetAlpha = 0;
+        var alphaDiff = 0;
+
+        var self = this;
+        Object.defineProperties(this, {
+            visible: { get: function () { return currentAlpha > 0; } },
+            fading: { get: function () { return framesRemaining > 0; } },
+            targetAlpha: {
+                get: function() { return targetAlpha; }, 
+                set: function(value) {
+                    targetAlpha = value;
+                    framesRemaining = frameCount;
+                    alphaDiff = (targetAlpha - currentAlpha) / frameCount;
+                }
+            },
+            draw: { 
+                value: function() {
+                    if (framesRemaining > 0) {
+                        framesRemaining--;
+                        currentAlpha = Math.min(1, Math.max(0, currentAlpha + alphaDiff));
+                    }
+                    draw(currentAlpha);
+                }
+            }
+        });
+    }
+
+
 
     function fillRectangle(ctx, pos, size, fill) {
         /// <signature>
@@ -101,6 +150,16 @@
     }
 
 
+    function alphaRectDraw(ctx, x, y, w, h, rgb) {
+        return function (a) {
+            ctx.save();
+            ctx.fillStyle = rgb;
+            ctx.globalAlpha = a;
+            ctx.fillRect(x, y, w, h);
+            ctx.restore();
+        };
+    }
+
     $.fn.imp = function (options) {
 
         this.css('border', '4px inset #9b9b9b');
@@ -114,12 +173,7 @@
 
         /// <var type='HTMLCanvasElement' />
         var canvas = this.get(0);
-
-        /// <var type='Context2D' />
         var ctx = canvas.getContext('2d');
-
-        var fillStyle = 'rgba(128,128,128,0.3)';
-        var arrowFillStyle = 'rgba(0,0,0,1)';
 
         var leftXBounded = false,
             rightXBounded = false,
@@ -147,24 +201,50 @@
             self.css('cursor', 'auto');
         }
 
-        var rectangleSize = new Vector2D(clickableWidth, height),
-            rectangleFill = new Color(128, 128, 128, 0.3),
-            arrowSize = new Vector2D(40, 20),
-            arrowFill = new Color(0, 0, 0, 1);
-        function drawLeft() {
-            fillRectangle(ctx, new Vector2D(0, 0), rectangleSize, rectangleFill);
-            fillTriangle(ctx, new Vector2D(clickableWidth / 2, canvas.height / 2), arrowSize, 270, arrowFill);
-            self.css('cursor', 'pointer');
-        }
-        function drawRight() {
-            fillRectangle(ctx, new Vector2D(width - clickableWidth, 0), rectangleSize, rectangleFill);
-            fillTriangle(ctx, new Vector2D(canvas.width - clickableWidth / 2, canvas.height / 2), arrowSize, 90, arrowFill);
-            self.css('cursor', 'pointer');
+        var invisibleAlpha = 0, goalAlpha = 0.3;
+
+        function createClickables(ctx, w, h, rgb, initialAlpha, frameCount) {
+            var left = new AlphaFade(alphaRectDraw(ctx, 0, 0, w, h, rgb), initialAlpha, frameCount),
+                right = new AlphaFade(alphaRectDraw(ctx, width - clickableWidth, 0, w, h, rgb), initialAlpha, frameCount);
+            return {
+                left: left,
+                right: right,
+                draw: function () {
+                    left.draw();
+                    right.draw();
+                }
+            };
         }
 
+        var clickables = createClickables(ctx, clickableWidth, height, "#999999", 0, 25);
+
         function checkBounds() {
+
             leftXBounded = mouseX > offset.left && mouseX < offset.left + clickableWidth;
+            if (leftXBounded) {
+                if (!clickables.left.visible && !clickables.left.fading) {
+                    clickables.left.targetAlpha = goalAlpha;
+                }
+            }
+            else {
+                if (clickables.left.visible && !clickables.left.fading) {
+                    clickables.left.targetAlpha = invisibleAlpha;
+                }
+            }
+
+
             rightXBounded = mouseX > offset.left + width - clickableWidth && mouseX < offset.left + width;
+            if (rightXBounded) {
+                if (!clickables.right.visible && !clickables.right.fading) {
+                    clickables.right.targetAlpha = goalAlpha;
+                }
+            }
+            else {
+                if (clickables.right.visible && !clickables.right.fading) {
+                    clickables.right.targetAlpha = invisibleAlpha;
+                }
+            }
+
             yBounded = mouseY >= offset.top && mouseY <= offset.top + height;
         }
 
@@ -173,12 +253,10 @@
             clear();
             ctx.drawImage(images[index], 0, 0, canvas.width, canvas.height);
             checkBounds();
+            clickables.draw();
             if (yBounded) {
-                if (leftXBounded) {
-                    drawLeft();
-                }
-                if (rightXBounded) {
-                    drawRight();
+                if (leftXBounded || rightXBounded) {
+                    self.css('cursor', 'pointer');
                 }
             }
         }
@@ -212,7 +290,7 @@
             images[i] = img;
         }
 
-        setInterval(draw, 33.333);
+        setInterval(draw, Imp.msPerFrame);
         
         return this;
     };
