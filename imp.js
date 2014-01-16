@@ -157,16 +157,6 @@
         };
     }
 
-    function toImageArray(srcArray) {
-        var images = [];
-        for (var i = 0, len = srcArray.length; i < len; i++) {
-            var img = new Image();
-            img.src = srcArray[i];
-            images.push(img);
-        }
-        return images;
-    }
-
 
     function LinkedListNode(data, list, prev, next) {
         this.data = data;
@@ -195,29 +185,46 @@
         return node;
     };
 
+    function ImageData(img) {
+        this.primary = new Image();
+        this.primary.src = img.src;
+        this.hover = this.primary;
+        if (img.hoverSrc) {
+            this.hover = new Image();
+            this.hover.src = img.hoverSrc;
+        }
+    }
+
+    ImageData.prototype.getImage = function (isMouseOver) {
+        return isMouseOver ? this.hover : this.primary;
+    }
+
     function toImageList(srcArray, width, height) {
         var list = new LinkedList();
         for (var i = 0, len = srcArray.length; i < len; i++) {
-            var img = new Image();
-            img.src = srcArray[i];
-            img.width = width;
-            img.height = height;
-            list.append(img);
+            var src = srcArray[i];
+            if (typeof src === "string")
+                src = { src: src, hoverSrc: null };
+            list.append(new ImageData(src));
         }
-        console.log(list);
         return list;
     }
 
     function ImageScroller(ctx, images) {
-        var currentNode = images.first;
-        var count = images.length;
-        var endIndex = count - 1;
-        var width = ctx.canvas.width, height = ctx.canvas.height;
-        var index = 0;
-        var remainingOffset = 0;
-        var leftImage = images[0];
-        var rightImage = null;
-        var offsetPercentage = 0;
+        var currentNode = images.first,
+            width = ctx.canvas.width,
+            height = ctx.canvas.height,
+            remainingOffset = 0,
+            offsetPercentage = 0,
+            isMouseOver = false;
+
+        this.onMouseEnter = function () {
+            isMouseOver = true;
+        };
+
+        this.onMouseLeave = function () {
+            isMouseOver = false;
+        };
 
         this.scroll = function (offset) {
             if (remainingOffset !== 0)
@@ -228,7 +235,7 @@
 
         this.draw = function () {
             if (remainingOffset === 0) {
-                ctx.drawImage(currentNode.data, 0, 0, width, height);
+                ctx.drawImage(currentNode.data.getImage(isMouseOver), 0, 0, width, height);
                 return;
             }
             var dir, sibling, first, second;
@@ -246,10 +253,10 @@
             offsetPercentage += 0.01;
 
             var firstX = dir * width * offsetPercentage;
-            ctx.drawImage(first.data, firstX, 0, width, height);
+            ctx.drawImage(first.data.getImage(isMouseOver), firstX, 0, width, height);
 
             var secondX = firstX - width * dir;
-            ctx.drawImage(second.data, secondX, 0, width, height);
+            ctx.drawImage(second.data.getImage(isMouseOver), secondX, 0, width, height);
 
             if (offsetPercentage >= 1) {
                 remainingOffset = remainingOffset + dir;
@@ -259,17 +266,16 @@
         };
     }
 
-    ImageScroller.prototype.scroll = function (offset) {
-        if (this.isScrolling)
-            return;
-        this.remainingOffset = Math.abs(offset);
-
-    };
-
     $.fn.imp = function (options) {
+        
+        if (!options.border)
+            options.border = '4px inset #9b9b9b';
+        if (!options.backgroundColor)
+            options.backgroundColor = '#494949';
 
-        this.css('border', '4px inset #9b9b9b');
-        this.css('background-color', '#494949');
+        this.css('border', options.border);
+        this.css('background-color', options.backgroundColor);
+
 
         var self = this;
         /// <var type='HTMLCanvasElement' />
@@ -347,6 +353,9 @@
                 }
             }
         }
+
+        this.mouseenter(imageScroller.onMouseEnter);
+        this.mouseleave(imageScroller.onMouseLeave);
 
         $(document).bind('mousemove', function (e) {
             mouseX = e.pageX;
