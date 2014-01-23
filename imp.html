@@ -3,10 +3,13 @@
 <head>
     <title>Imp</title>
     <script src="jquery-1.8.2.js"></script>
+    <script src="kinetic-v5.0.1.min.js"></script>
     <script src="imp.js"></script>
     <script>
-        $(function () {
+        $(function () {   
             $("#container").imp({
+                height: 400,
+                width: 500,
                 images: [
                     { src: "lock.jpg", hoverSrc: "star.jpg" },
                     "pig.jpg",
@@ -17,8 +20,11 @@
     </script>
 </head>
 <body>
-    <canvas id="container" height="400" width="500">
+    <div id="container">
 
-    </canvas>
+    </div>
+    <!--<canvas id="container" height="400" width="500" style="background-color:gray;">
+
+    </canvas>-->
 </body>
 </html>

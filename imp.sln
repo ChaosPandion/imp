@@ -8,6 +8,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		imp.html = imp.html
 		imp.js = imp.js
 		jquery-1.8.2.js = jquery-1.8.2.js
+		kinetic-v5.0.1.min.js = kinetic-v5.0.1.min.js
 		lock.jpg = lock.jpg
 		pig.jpg = pig.jpg
 		star.jpg = star.jpg
